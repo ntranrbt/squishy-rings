@@ -1,0 +1,117 @@
+name: Submit for Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      stores:
+        description: 'Stores to submit'
+        type: choice
+        options:
+          - both
+          - android
+          - ios
+        default: both
+
+jobs:
+  android:
+    name: Submit Android to Play Production
+    runs-on: ubuntu-latest
+    if: inputs.stores != 'ios'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Validate Android release signing inputs
+        env:
+          KEYSTORE_FILE_BASE64: ${{ secrets.KEYSTORE_FILE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          for var in KEYSTORE_FILE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!var}" ]; then
+              echo "::error::$var is required for a release-signed Android AAB"
+              exit 1
+            fi
+          done
+
+      - name: Decode Keystore
+        run: echo "${{ secrets.KEYSTORE_FILE_BASE64 }}" | base64 --decode > "${{ github.workspace }}/composeApp/release.jks"
+
+      - name: Build Android release AAB
+        run: ./gradlew :composeApp:bundleRelease
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          ANDROID_RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/composeApp/release.jks
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler: default
+          bundler-cache: true
+
+      - name: Create Google Play Service Account Key
+        run: echo '${{ secrets.PLAY_STORE_CONFIG_JSON }}' > "${{ github.workspace }}/composeApp/play_config.json"
+
+      - name: Sync production listing
+        working-directory: composeApp
+        run: bundle exec fastlane android sync_listings
+        env:
+          ANDROID_PLAY_CONFIG_JSON_PATH: ${{ github.workspace }}/composeApp/play_config.json
+          ANDROID_PLAY_TRACK: production
+
+      - name: Upload to production and submit for review
+        working-directory: composeApp
+        run: bundle exec fastlane android deploy
+        env:
+          ANDROID_PLAY_CONFIG_JSON_PATH: ${{ github.workspace }}/composeApp/play_config.json
+          ANDROID_PLAY_TRACK: production
+          ANDROID_PLAY_RELEASE_STATUS: completed
+          ANDROID_AAB_PATH: ${{ github.workspace }}/composeApp/build/outputs/bundle/release/composeApp-release.aab
+
+  ios:
+    name: Submit iOS to App Store Review
+    runs-on: macos-26
+    if: inputs.stores != 'android'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler: default
+          bundler-cache: true
+
+      - name: Submit for App Store review
+        working-directory: iosApp
+        run: bundle exec fastlane ios submit_for_review
+        env:
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY }}

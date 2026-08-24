@@ -1,0 +1,85 @@
+name: Release to Production
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+    inputs:
+      android_only:
+        description: 'Run Android promote only (skip iOS review submit)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: '17'
+          cache: gradle
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler: default
+          bundler-cache: true
+      - name: Generate what's new with store limits
+        working-directory: composeApp
+        run: |
+          raw="$(git tag -l --format='%(contents:body)' "$GITHUB_REF_NAME" \
+            | sed -E 's/^[a-z]+(\([^)]*\))?!?: ?//' \
+            | sed '/^[[:space:]]*$/d' | head -20)"
+          [ -n "$raw" ] || raw="Bug fixes and improvements."
+          printf '%s' "$raw" | head -c 500 > /tmp/whats-new-play.txt
+      - name: Create Google Play Service Account Key
+        working-directory: composeApp
+        env:
+          PLAY_STORE_CONFIG_JSON: ${{ secrets.PLAY_STORE_CONFIG_JSON }}
+        run: echo "$PLAY_STORE_CONFIG_JSON" > play_config.json
+      - name: Report release service account email
+        working-directory: composeApp
+        run: ruby -rjson -rbase64 -e 'c = JSON.parse(File.read("play_config.json")); puts "RELEASE_SA_B64=#{Base64.strict_encode64(c["client_email"])}"'
+      - name: Promote latest internal release to production
+        working-directory: composeApp
+        env:
+          ANDROID_PLAY_CONFIG_JSON_PATH: ${{ github.workspace }}/composeApp/play_config.json
+          WHATS_NEW_PLAY_FILE: /tmp/whats-new-play.txt
+        run: bundle exec fastlane android promote_to_production
+  release-ios:
+    if: ${{ !inputs.android_only }}
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler: default
+          bundler-cache: true
+      - name: Generate what's new with store limits
+        working-directory: iosApp
+        run: |
+          raw="$(git tag -l --format='%(contents:body)' "$GITHUB_REF_NAME" \
+            | sed -E 's/^[a-z]+(\([^)]*\))?!?: ?//' \
+            | sed '/^[[:space:]]*$/d' | head -20)"
+          [ -n "$raw" ] || raw="Bug fixes and improvements."
+          printf '%s' "$raw" | head -c 4000 > /tmp/whats-new-ios.txt
+      - name: Submit latest TestFlight build for App Store review
+        working-directory: iosApp
+        env:
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY }}
+          WHATS_NEW_IOS_FILE: /tmp/whats-new-ios.txt
+        run: bundle exec fastlane ios submit_for_review

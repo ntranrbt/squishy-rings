@@ -1,0 +1,122 @@
+name: Sync Store Metadata
+
+on:
+  workflow_dispatch:
+
+jobs:
+  detect-metadata-changes:
+    name: Detect store metadata changes
+    runs-on: ubuntu-latest
+    outputs:
+      android_changed: ${{ steps.detect.outputs.android_changed }}
+      ios_changed: ${{ steps.detect.outputs.ios_changed }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed store metadata
+        id: detect
+        shell: bash
+        run: |
+          if ! git rev-parse HEAD^ >/dev/null 2>&1; then
+            echo "No parent commit detected for this ref. Syncing both platforms."
+            {
+              echo "android_changed=true"
+              echo "ios_changed=true"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          check_changed() {
+            local output_name="$1"
+            shift
+
+            if git diff --quiet HEAD^ HEAD -- "$@"; then
+              echo "${output_name}=false" >> "$GITHUB_OUTPUT"
+              echo "No relevant ${output_name%_changed} store metadata changes detected."
+            else
+              echo "${output_name}=true" >> "$GITHUB_OUTPUT"
+              echo "Relevant ${output_name%_changed} store metadata changes detected."
+            fi
+          }
+
+          check_changed android_changed \
+            store_metadata/en-US/name.txt \
+            store_metadata/en-US/short_description.txt \
+            store_metadata/en-US/description.txt \
+            store_metadata/en-US/release_notes.txt \
+            store_metadata/assets/feature_graphic.png \
+            store_metadata/assets/icon_512.png \
+            store_metadata/assets/screenshots/android
+
+          check_changed ios_changed \
+            store_metadata/en-US/name.txt \
+            store_metadata/en-US/description.txt \
+            store_metadata/en-US/release_notes.txt \
+            store_metadata/ios/metadata \
+            store_metadata/assets/screenshots/ios
+
+  sync-android-listing:
+    name: Sync Android Play listing
+    needs: detect-metadata-changes
+    if: needs.detect-metadata-changes.outputs.android_changed == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler: default
+          bundler-cache: true
+
+      - name: Create Google Play Service Account Key
+        run: echo '${{ secrets.PLAY_STORE_CONFIG_JSON }}' > "${{ github.workspace }}/composeApp/play_config.json"
+
+      - name: Sync Android listing metadata with Fastlane
+        working-directory: composeApp
+        run: bundle exec fastlane android sync_listings
+        env:
+          ANDROID_PLAY_CONFIG_JSON_PATH: ${{ github.workspace }}/composeApp/play_config.json
+          ANDROID_PLAY_TRACK: internal
+
+  sync-ios-listing:
+    name: Sync iOS App Store listing
+    needs: detect-metadata-changes
+    if: needs.detect-metadata-changes.outputs.ios_changed == 'true'
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler: default
+          bundler-cache: true
+
+      - name: Sync iOS listing metadata with Fastlane
+        working-directory: iosApp
+        run: bundle exec fastlane ios sync_listing
+        env:
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY }}
+
+  nothing-to-sync:
+    name: No store metadata changes
+    needs: detect-metadata-changes
+    if: needs.detect-metadata-changes.outputs.android_changed != 'true' && needs.detect-metadata-changes.outputs.ios_changed != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Report no-op result
+        run: echo "No Android or iOS store metadata changes were detected between HEAD^ and HEAD. Nothing to sync."
