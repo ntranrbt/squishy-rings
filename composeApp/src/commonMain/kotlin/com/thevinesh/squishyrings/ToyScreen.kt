@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.StrokeCap
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
@@ -38,7 +39,7 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun ToyScreen(
-    tilt: PlatformTilt? = null,
+    tilt: TiltSource? = null,
     haptics: HapticFeedback = NoOpHapticFeedback,
 ) {
     val density = LocalDensity.current
@@ -78,7 +79,7 @@ fun ToyScreen(
             val s = sim ?: return@Canvas
             drawWater(size.width, size.height, f)
             s.rings.forEach { ring -> drawRing(ring) }
-            drawChamberFrame(size.width, size.height, LocalDensity.current.density)
+            drawChamberFrame(size.width, size.height, density.density)
         }
 
         SquishyButton(
@@ -200,7 +201,7 @@ private fun DrawScope.drawChamberFrame(width: Float, height: Float, density: Flo
         ),
         topLeft = Offset(0f, 0f),
         size = Size(width, height * 0.25f),
-        cornerRadius = CornerRadius(corner, corner, 0f, 0f),
+        cornerRadius = CornerRadius(corner, corner),
     )
 }
 

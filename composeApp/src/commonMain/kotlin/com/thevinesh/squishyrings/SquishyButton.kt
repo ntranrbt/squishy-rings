@@ -9,8 +9,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitFirstUp
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.tryAwaitUp
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
@@ -68,9 +69,9 @@ fun SquishyButton(
                     awaitFirstDown(requireUnconsumed = false)
                     pressed = true
                     onSquish()
-                    awaitFirstUp(requireUnconsumed = false)
+                    val up = tryAwaitUp()
                     pressed = false
-                    onPop()
+                    if (up != null) onPop()
                 }
             },
     ) {

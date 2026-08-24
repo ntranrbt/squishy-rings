@@ -11,23 +11,22 @@ import android.os.Looper
 /**
  * Device tilt via the rotation vector sensor (no permission required).
  *
- * The rotation vector gives the device orientation R (device→world, NED: x north,
- * y east, z down). Device-space gravity = R^T · (0, 0, 1). For a phone held in
+ * The rotation vector gives the device orientation R (device to world, NED: x north,
+ * y east, z down). Device-space gravity = R^T . (0, 0, 1). For a phone held in
  * portrait facing the user: screen right = +gx, screen down = +gy, so the
  * screen-space gravity vector is simply (gx, gy).
  */
-internal class AndroidTiltState(
+class AndroidTiltSource(
     context: Context,
-    sink: (Vec2) -> Unit,
-) : PlatformTilt(sink), SensorEventListener {
+) : TiltSource, SensorEventListener {
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val rotationMatrix = FloatArray(9)
 
-    override fun latest(): Vec2 = last
-
     private var last: Vec2 = Vec2(0f, 0f)
+
+    override fun latest(): Vec2 = last
 
     override fun start() {
         if (sensor == null) return
@@ -45,11 +44,10 @@ internal class AndroidTiltState(
 
     override fun onSensorChanged(event: SensorEvent) {
         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-        // device-space gravity = R^T · (0,0,1) → first column of R
+        // device-space gravity = R^T . (0,0,1) -> first column of R
         val gx = rotationMatrix[0]
         val gy = rotationMatrix[1]
         last = Vec2(gx, gy)
-        sink(last)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

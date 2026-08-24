@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val hapticFeedback = remember(applicationContext) { AndroidHapticFeedback(applicationContext) }
-            val tilt = remember { AndroidTiltState(applicationContext, sink = { /* consumed in frame loop via latest() */ }) }
+            val tilt = remember { AndroidTiltSource(applicationContext) }
             App(
                 hapticFeedback = hapticFeedback,
                 platformTilt = tilt,

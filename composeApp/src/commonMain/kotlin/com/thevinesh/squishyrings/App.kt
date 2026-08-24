@@ -14,7 +14,7 @@ val LocalHapticFeedback = compositionLocalOf<HapticFeedback> { NoOpHapticFeedbac
 @Composable
 fun App(
     hapticFeedback: HapticFeedback = NoOpHapticFeedback,
-    platformTilt: PlatformTilt? = null,
+    platformTilt: TiltSource? = null,
 ) {
     CompositionLocalProvider(LocalHapticFeedback provides hapticFeedback) {
         Box(

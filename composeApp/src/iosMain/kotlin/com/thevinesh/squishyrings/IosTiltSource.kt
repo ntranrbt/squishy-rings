@@ -12,9 +12,7 @@ import platform.Foundation.NSOperationQueue
  * Updates run into a background NSOperationQueue; [latest] (called once per
  * frame from the main-thread frame loop) reads the most recent sample.
  */
-internal class IosTiltState(
-    sink: (Vec2) -> Unit,
-) : PlatformTilt(sink) {
+class IosTiltSource : TiltSource {
     private val manager = CMMotionManager()
     private var queue: NSOperationQueue? = null
 

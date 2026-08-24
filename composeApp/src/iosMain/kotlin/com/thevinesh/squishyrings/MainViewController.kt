@@ -6,7 +6,7 @@ import platform.UIKit.UIViewController
 
 fun MainViewController(): UIViewController {
     val hapticFeedback = IosHapticFeedback()
-    val tilt = IosTiltState(sink = { /* consumed via latest() in the frame loop */ })
+    val tilt = IosTiltSource()
 
     return ComposeUIViewController {
         App(

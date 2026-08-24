@@ -24,12 +24,13 @@ class TiltState(private val tau: Float = 0.15f) {
 }
 
 /**
- * Platform tilt source (gyro/accelerometer). Pushes screen-space gravity vectors
- * into [sink]; [latest] returns the most recent raw vector for the frame loop.
- * No permission is required on Android (ROTATION_VECTOR) or iOS (CMMotionManager).
+ * Device tilt source. Implementations are platform-specific (Android rotation
+ * vector, iOS Core Motion); the frame loop polls [latest] once per frame.
  */
-expect class PlatformTilt(val sink: (Vec2) -> Unit) {
+interface TiltSource {
+    /** Most recent screen-space gravity vector. (0, 0) until the first sample. */
+    fun latest(): Vec2
+
     fun start()
     fun stop()
-    fun latest(): Vec2
 }

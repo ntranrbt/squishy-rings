@@ -26,18 +26,29 @@ internal class AndroidHapticFeedback(
     override fun squish() {
         val v = vibrator ?: return
         if (!v.hasVibrator()) return
-        // solid "thock" with a short settle
-        val effect = VibrationEffect.createWaveform(
-            longArrayOf(0L, 30L, 20L),
-            intArrayOf(160, 80),
-            intArrayOf(-1, -1),
-        )
-        v.vibrate(effect)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // solid "thock" with a short settle
+            v.vibrate(
+                VibrationEffect.createWaveform(
+                    timings = longArrayOf(0L, 30L, 20L),
+                    amplitudes = intArrayOf(-1, 160, 80),
+                    repeat = -1,
+                ),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(50)
+        }
     }
 
     override fun pop() {
         val v = vibrator ?: return
         if (!v.hasVibrator()) return
-        v.vibrate(VibrationEffect.createOneShot(15, 90))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            v.vibrate(VibrationEffect.createOneShot(15, 90))
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(15)
+        }
     }
 }
