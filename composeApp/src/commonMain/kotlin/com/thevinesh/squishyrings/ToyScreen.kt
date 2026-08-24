@@ -23,7 +23,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.StrokeCap
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
@@ -188,10 +188,11 @@ private fun DrawScope.drawChamberFrame(width: Float, height: Float, density: Flo
     val corner = 48f * density
     // clear plastic case edge
     drawRoundRect(
+        color = ToyColors.ChamberEdge,
         topLeft = Offset(6f * density, 6f * density),
         size = Size(width - 12f * density, height - 12f * density),
         cornerRadius = CornerRadius(corner, corner),
-        style = Stroke(width = 2f * density, color = ToyColors.ChamberEdge),
+        style = Stroke(width = 2f * density),
     )
     // top-edge gloss
     drawRoundRect(

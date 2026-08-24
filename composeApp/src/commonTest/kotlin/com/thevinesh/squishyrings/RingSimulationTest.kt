@@ -45,7 +45,12 @@ class RingSimulationTest {
 
     @Test
     fun overlapping_rings_separate() {
-        val s = RingSimulation.create(width = 1080f, height = 1920f, seed = 3)
+        val s = RingSimulation.create(
+            width = 1080f,
+            height = 1920f,
+            seed = 3,
+            tuning = Tuning(ringCount = 2),
+        )
         val a = s.rings.first()
         val b = s.rings[1]
         a.apply { x = 500f; y = 500f; vx = 0f; vy = 0f }

@@ -132,23 +132,31 @@ class RingSimulation private constructor(
                 ring.y = height - inset - ring.radius
                 if (ring.vy > 0f) ring.vy = -ring.vy * tuning.wallDamping
             }
-            // rounded corners: circle constraint around each corner center
-            val corners = arrayOf(
-                Vec2(inset + cornerR, inset + cornerR),
-                Vec2(width - inset - cornerR, inset + cornerR),
-                Vec2(inset + cornerR, height - inset - cornerR),
-                Vec2(width - inset - cornerR, height - inset - cornerR),
-            )
-            for (c in corners) {
-                val dx = ring.x - c.x
-                val dy = ring.y - c.y
-                val dist = hypot(dx, dy).coerceAtLeast(0.001f)
-                val limit = cornerR
-                if (dist > limit) {
+            // rounded corners: arc constraint only inside the corner region
+            val corner = when {
+                ring.x < inset + cornerR && ring.y < inset + cornerR ->
+                    Vec2(inset + cornerR, inset + cornerR)
+
+                ring.x > width - inset - cornerR && ring.y < inset + cornerR ->
+                    Vec2(width - inset - cornerR, inset + cornerR)
+
+                ring.x < inset + cornerR && ring.y > height - inset - cornerR ->
+                    Vec2(inset + cornerR, height - inset - cornerR)
+
+                ring.x > width - inset - cornerR && ring.y > height - inset - cornerR ->
+                    Vec2(width - inset - cornerR, height - inset - cornerR)
+
+                else -> null
+            }
+            if (corner != null) {
+                val dx = ring.x - corner.x
+                val dy = ring.y - corner.y
+                val dist = hypot(dx, dy)
+                if (dist > cornerR && dist > 0.001f) {
                     val nx = dx / dist
                     val ny = dy / dist
-                    ring.x = c.x + nx * limit
-                    ring.y = c.y + ny * limit
+                    ring.x = corner.x + nx * cornerR
+                    ring.y = corner.y + ny * cornerR
                     val vDotN = ring.vx * nx + ring.vy * ny
                     if (vDotN > 0f) {
                         ring.vx -= (1f + tuning.wallDamping) * vDotN * nx

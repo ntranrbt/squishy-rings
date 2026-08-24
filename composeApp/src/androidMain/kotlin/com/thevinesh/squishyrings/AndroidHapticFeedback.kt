@@ -30,9 +30,9 @@ internal class AndroidHapticFeedback(
             // solid "thock" with a short settle
             v.vibrate(
                 VibrationEffect.createWaveform(
-                    timings = longArrayOf(0L, 30L, 20L),
-                    amplitudes = intArrayOf(-1, 160, 80),
-                    repeat = -1,
+                    longArrayOf(0L, 30L, 20L),
+                    intArrayOf(-1, 160, 80),
+                    -1,
                 ),
             )
         } else {

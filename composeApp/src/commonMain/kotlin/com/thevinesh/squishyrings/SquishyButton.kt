@@ -10,7 +10,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.tryAwaitUp
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -24,7 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.graphicsLayer
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
@@ -43,7 +42,7 @@ fun SquishyButton(
     onPop: () -> Unit = {},
 ) {
     var pressed by remember { mutableStateOf(false) }
-    val scale by remember { Animatable(1f) }
+    val scale = remember { Animatable(1f) }
 
     LaunchedEffect(pressed) {
         scale.animateTo(
@@ -69,9 +68,13 @@ fun SquishyButton(
                     awaitFirstDown(requireUnconsumed = false)
                     pressed = true
                     onSquish()
-                    val up = tryAwaitUp()
+                    // hold until the finger lifts
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.changes.all { !it.pressed }) break
+                    }
                     pressed = false
-                    if (up != null) onPop()
+                    onPop()
                 }
             },
     ) {
