@@ -1,0 +1,8 @@
+android_home(ENV['ANDROID_HOME'])
+app_package_name("com.thevinesh.squishyrings")
+tests_package_name("com.thevinesh.squishyrings.test")
+locales(["en-US"])
+clear_previous_screenshots(true)
+app_apk_path("build/outputs/apk/debug/composeApp-debug.apk")
+tests_apk_path("build/outputs/apk/androidTest/debug/composeApp-debug-androidTest.apk")
+reinstall_app(true)

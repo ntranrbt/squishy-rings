@@ -1,0 +1,5 @@
+app_identifier(ENV["IOS_APP_IDENTIFIER"] || "com.thevinesh.squishyrings")
+team_id(ENV["IOS_TEAM_ID"] || "9S95C26JN6")
+
+apple_id(ENV["APPLE_ID"]) if ENV["APPLE_ID"].to_s.strip != ""
+itc_team_id(ENV["APP_STORE_CONNECT_TEAM_ID"]) if ENV["APP_STORE_CONNECT_TEAM_ID"].to_s.strip != ""

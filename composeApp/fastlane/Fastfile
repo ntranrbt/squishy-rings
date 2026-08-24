@@ -1,0 +1,133 @@
+require "fileutils"
+
+default_platform(:android)
+
+platform :android do
+  desc "Upload a prebuilt Android App Bundle to Google Play"
+  lane :deploy do
+    play_config_path = ENV["ANDROID_PLAY_CONFIG_JSON_PATH"]
+    UI.user_error!("ANDROID_PLAY_CONFIG_JSON_PATH must point to a readable Google Play service account json key") if play_config_path.to_s.empty? || !File.exist?(play_config_path)
+
+    aab_path = ENV["ANDROID_AAB_PATH"]
+    UI.user_error!("ANDROID_AAB_PATH must point to a readable Android App Bundle") if aab_path.to_s.empty? || !File.exist?(aab_path)
+
+    release_status = ENV.fetch("ANDROID_PLAY_RELEASE_STATUS", "draft")
+
+    upload_to_play_store(
+      track: ENV.fetch("ANDROID_PLAY_TRACK", "internal"),
+      release_status: release_status,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      aab: aab_path
+    )
+  end
+
+  desc "Promote the newest internal release to production (no binary upload)"
+  lane :promote_to_production do
+    json_key = ENV["ANDROID_PLAY_CONFIG_JSON_PATH"]
+    UI.user_error!("ANDROID_PLAY_CONFIG_JSON_PATH must point to a readable Google Play service account json key") if json_key.to_s.empty? || !File.exist?(json_key)
+
+    latest = google_play_track_version_codes(track: "internal", json_key: json_key).map(&:to_i).max
+    UI.user_error!("No internal release found to promote") unless latest
+
+    changelog = ENV["WHATS_NEW_PLAY_FILE"]
+    if changelog && File.exist?(changelog)
+      metadata_path = File.expand_path("metadata/android", __dir__)
+      locales = Dir.children(metadata_path).reject { |f| f.start_with?(".") }
+      locales.each do |locale|
+        dir = File.join(metadata_path, locale, "changelogs")
+        FileUtils.mkdir_p(dir)
+        FileUtils.cp(changelog, File.join(dir, "#{latest}.txt"))
+      end
+      UI.message("Staged 'what's new' changelog for versionCode #{latest} in #{locales.length} locale(s)")
+    end
+
+    upload_to_play_store(
+      json_key: json_key,
+      track: "internal",
+      track_promote_to: "production",
+      version_code: latest,
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: changelog ? false : true
+    )
+    UI.success("Promoted internal release #{latest} to production")
+  end
+
+  desc "Sync shared metadata to fastlane folder"
+  lane :sync_metadata do
+    shared_path = File.expand_path("../../store_metadata", __dir__)
+    metadata_path = File.expand_path("metadata/android", __dir__)
+    locale_path = File.join(metadata_path, "en-US")
+    images_path = File.join(locale_path, "images")
+    screenshots_source_path = File.join(shared_path, "assets", "screenshots", "android", "en-US", "phoneScreenshots")
+    phone_screenshots_path = File.join(images_path, "phoneScreenshots")
+
+    sh "rm -rf '#{metadata_path}'"
+    sh "mkdir -p '#{images_path}'"
+    sh "cp '#{File.join(shared_path, 'en-US', 'name.txt')}' '#{File.join(locale_path, 'title.txt')}'"
+    sh "cp '#{File.join(shared_path, 'en-US', 'short_description.txt')}' '#{File.join(locale_path, 'short_description.txt')}'"
+    sh "cp '#{File.join(shared_path, 'en-US', 'description.txt')}' '#{File.join(locale_path, 'full_description.txt')}'"
+    sh "mkdir -p '#{File.join(locale_path, 'changelogs')}'"
+    sh "cp '#{File.join(shared_path, 'en-US', 'release_notes.txt')}' '#{File.join(locale_path, 'changelogs', 'default.txt')}'"
+    sh "cp '#{File.join(shared_path, 'assets', 'feature_graphic.png')}' '#{File.join(images_path, 'featureGraphic.png')}'"
+    sh "cp '#{File.join(shared_path, 'assets', 'icon_512.png')}' '#{File.join(images_path, 'icon.png')}'"
+
+    if Dir.exist?(screenshots_source_path)
+      sh "mkdir -p '#{phone_screenshots_path}'"
+      sh "cp -R '#{screenshots_source_path}/.' '#{phone_screenshots_path}/'"
+    end
+  end
+
+  desc "Sync Play Store metadata, images, and screenshots without uploading a new binary"
+  lane :sync_listings do
+    play_config_path = ENV["ANDROID_PLAY_CONFIG_JSON_PATH"]
+    UI.user_error!("ANDROID_PLAY_CONFIG_JSON_PATH must point to a readable Google Play service account json key") if play_config_path.to_s.empty? || !File.exist?(play_config_path)
+
+    sync_metadata
+
+    metadata_path = File.expand_path("metadata/android", __dir__)
+    track = ENV.fetch("ANDROID_PLAY_TRACK", "internal")
+    upload_options = {
+      track: track,
+      metadata_path: metadata_path,
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+      skip_upload_changelogs: false,
+      sync_image_upload: true
+    }
+
+    # Play rejects changelog-only updates when a track has multiple releases unless
+    # we pin a version_code. Prefer an explicit override, otherwise use the newest
+    # code already on the track and stage a matching changelog file.
+    explicit_version_code = ENV["ANDROID_PLAY_VERSION_CODE"].to_s.strip
+    version_code = if explicit_version_code.empty?
+      google_play_track_version_codes(
+        track: track,
+        json_key: play_config_path
+      ).map(&:to_i).max
+    else
+      explicit_version_code.to_i
+    end
+
+    if version_code && version_code > 0
+      changelogs_path = File.join(metadata_path, "en-US", "changelogs")
+      default_changelog = File.join(changelogs_path, "default.txt")
+      versioned_changelog = File.join(changelogs_path, "#{version_code}.txt")
+      sh "cp '#{default_changelog}' '#{versioned_changelog}'" if File.exist?(default_changelog)
+      upload_options[:version_code] = version_code
+      UI.message("Uploading Play listing changelog for versionCode #{version_code}")
+    else
+      UI.important("No Play track version codes found; uploading listing metadata without changelogs")
+      upload_options[:skip_upload_changelogs] = true
+    end
+
+    upload_to_play_store(**upload_options)
+  end
+end

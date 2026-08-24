@@ -1,0 +1,2 @@
+json_key_file(ENV["ANDROID_PLAY_CONFIG_JSON_PATH"]) if ENV["ANDROID_PLAY_CONFIG_JSON_PATH"] # Path to the Google Play service account json key
+package_name("com.thevinesh.squishyrings")

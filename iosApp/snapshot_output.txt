@@ -1,0 +1,46 @@
+[14:16:12]: [33mResolving Swift Package Manager dependencies...[0m
+[14:16:12]: [36m$ xcodebuild -resolvePackageDependencies -scheme iosApp -project ./iosApp.xcodeproj[0m
+[14:16:12]: ▸ [35mCommand line invocation:[0m
+[14:16:12]: ▸ [35m    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -scheme iosApp -project ./iosApp.xcodeproj[0m
+[14:16:12]: ▸ [35mresolved source packages: [0m
+[14:16:12]: [36m$ xcodebuild -showBuildSettings -scheme iosApp -project ./iosApp.xcodeproj 2>&1[0m
+[14:16:13]: [31mYour Snapshot Helper file is missing, please place a copy[0m
+[14:16:13]: [31min your project directory[0m
+[14:16:13]: More information about Snapshot setup can be found here:
+[14:16:13]: https://docs.fastlane.tools/actions/snapshot/#quick-start
+[31m
+[!] Please add a Snapshot Helper file to your project[0m
+
+#######################################################################
+# fastlane 2.232.2 is available. You are on 2.230.0.
+# You should use the latest version.
+# Please update using `bundle update fastlane`.
+#######################################################################
+
+[32m2.232.2 Improvements[0m
+* [sigh] fix: prevent empty string as input to codesign on VERBOSE (#29910) via Connor Tumbleson (@iBotPeaches)
+* Fix console command compatibility with Ruby 3.3+ (#29925) via Jerome Lacoste (@lacostej)
+* cli: do not hide the original exception when failing in our ensure block (#29923) via Jerome Lacoste (@lacostej)
+* [core] Fix gemspec bin/console exclusion to subtract "console" not "bin/console" (#29914) via Tachibana waita (@whywaita)
+* [core] Upgrade rack transitive dep to please dependabot (#29911) via Jerome Lacoste (@lacostej)
+* build: move to faraday 1.10.5 (#29906) via Connor Tumbleson (@iBotPeaches)
+
+[32m2.232.1 Improvements[0m
+* [action] Revert to "-uploadedDate" sort order for app_store_build_num… (#29899) via Kai Leonhardt (@Mik4sa)
+
+[32m2.232.0 Improvements[0m
+* Revert "[pilot] Add Support of the BuildAudienceType Field (#29859)" (#29881) via Connor Tumbleson (@iBotPeaches)
+* [match] Download Apple's new Developer ID intermediate certificates (#29890) via Ian G. Maia (@iangmaia)
+* [match] Bump minimum version of `aws-sdk-s3` dependency to `~> 1.197` (#29750) via Olivier Halligon (@AliSoftware)
+* [action] Switch to "build uploads" api for app_store_build_number and latest_testflight_build_number action (#29879) via Kai Leonhardt (@Mik4sa)
+* [appium] Fix appium driver usage (#29882) via Naveed Ahmad (@naveed-ahmad)
+* [gym, scan, snapshot] Allow disabling swift packages fetches when using xcodebuild (#29862) via Alexandre Podlewski (@alexandre-pod)
+* [ci] build: move to m4 runners (#29802) via Connor Tumbleson (@iBotPeaches)
+* [Ruby] Ruby 2.7 is now the minimum (dropping Ruby 2.6) (#29779) via Connor Tumbleson (@iBotPeaches)
+* [ci] Fix CI pipeline to actually lint shell/bash scripts. (#29757) via Connor Tumbleson (@iBotPeaches)
+* [action] Add format switch to the import_certificate action (#29868) via Kai Leonhardt (@Mik4sa)
+* [pilot] Add Support of the BuildAudienceType Field (#29859) via YuantongLu (@YuantongL)
+
+[32mTo see all new releases, open https://github.com/fastlane/fastlane/releases[0m
+
+[32mPlease update using `bundle update fastlane`[0m

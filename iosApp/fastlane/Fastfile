@@ -1,0 +1,350 @@
+require "fileutils"
+
+default_platform(:ios)
+
+def ci?
+  ENV["CI"].to_s == "true"
+end
+
+def env_present?(key)
+  !ENV[key].to_s.strip.empty?
+end
+
+def ios_app_identifier
+  ENV["IOS_APP_IDENTIFIER"].to_s.strip.empty? ? "com.thevinesh.squishyrings" : ENV["IOS_APP_IDENTIFIER"].strip
+end
+
+def ios_team_id
+  ENV["IOS_TEAM_ID"].to_s.strip.empty? ? "9S95C26JN6" : ENV["IOS_TEAM_ID"].strip
+end
+
+def missing_build_requirements
+  %w[
+    MATCH_GIT_URL
+    MATCH_PASSWORD
+    APP_STORE_CONNECT_API_KEY_KEY_ID
+    APP_STORE_CONNECT_API_KEY_ISSUER_ID
+    APP_STORE_CONNECT_API_KEY_KEY
+  ].reject { |key| env_present?(key) }
+end
+
+def missing_upload_requirements
+  %w[
+    APP_STORE_CONNECT_API_KEY_KEY_ID
+    APP_STORE_CONNECT_API_KEY_ISSUER_ID
+    APP_STORE_CONNECT_API_KEY_KEY
+  ].reject { |key| env_present?(key) }
+end
+
+def ios_build_number
+  ENV["GITHUB_RUN_NUMBER"].to_s.strip.empty? ? "1" : ENV["GITHUB_RUN_NUMBER"].strip
+end
+
+# Single source of truth for the user-visible release version. version.txt
+# at the repo root drives BOTH platforms so App Store and Play show the same
+# version for the same release.
+def repo_version_string
+  version_path = File.expand_path("../../version.txt", __dir__)
+  version = File.exist?(version_path) ? File.read(version_path).strip : ""
+  UI.user_error!("version.txt missing at #{version_path}; add it before building or submitting") if version.to_s.empty?
+  version
+end
+
+def app_store_api_key
+  app_store_connect_api_key(
+    key_id: ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"],
+    issuer_id: ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"],
+    key_content: ENV["APP_STORE_CONNECT_API_KEY_KEY"],
+    is_key_content_base64: true
+  )
+end
+
+def match_options(api_key)
+  options = {
+    type: "appstore",
+    readonly: ci?,
+    app_identifier: [ios_app_identifier],
+    team_id: ios_team_id,
+    api_key: api_key
+  }
+  options[:git_url] = ENV["MATCH_GIT_URL"]
+  options[:git_basic_authorization] = ENV["MATCH_GIT_BASIC_AUTHORIZATION"] if env_present?("MATCH_GIT_BASIC_AUTHORIZATION")
+  options
+end
+
+# App Store listing metadata lives on an editable version. When only a live
+# version exists, deliver fails with "could not find an editable version".
+def bump_ios_version_string(version_string)
+  parts = version_string.to_s.split(".")
+  if parts.last.to_s.match?(/^\d+$/)
+    parts[-1] = (parts.last.to_i + 1).to_s
+    parts.join(".")
+  else
+    "#{version_string}.1"
+  end
+end
+
+def next_editable_ios_version_string(app, platform:)
+  explicit = ENV["IOS_APP_STORE_VERSION"].to_s.strip
+  return explicit unless explicit.empty?
+
+  base = app.get_live_app_store_version(platform: platform) ||
+         app.get_latest_app_store_version(platform: platform)
+  UI.user_error!("No App Store version found to base a new editable version on for #{ios_app_identifier}") unless base
+
+  bump_ios_version_string(base.version_string)
+end
+
+def wait_for_editable_ios_version!(app, platform:, attempts: 8)
+  wait_time = 10
+  attempts.times do |index|
+    edit_version = app.get_edit_app_store_version(platform: platform)
+    return edit_version if edit_version
+
+    remaining = attempts - index - 1
+    break if remaining.zero?
+
+    sleep_time = [wait_time, 5 * 60].min
+    UI.message("Waiting for editable App Store version... Retrying after #{sleep_time} seconds (remaining: #{remaining})")
+    sleep(sleep_time)
+    wait_time *= 2
+  end
+
+  UI.user_error!("Timed out waiting for an editable App Store version for #{ios_app_identifier}")
+end
+
+def ensure_editable_ios_app_store_version!
+  app = Spaceship::ConnectAPI::App.find(ios_app_identifier)
+  UI.user_error!("Could not find App Store Connect app for #{ios_app_identifier}") unless app
+
+  platform = Spaceship::ConnectAPI::Platform::IOS
+  edit_version = app.get_edit_app_store_version(platform: platform)
+  if edit_version
+    UI.message("Using existing editable App Store version #{edit_version.version_string}")
+    return edit_version.version_string
+  end
+
+  version_string = next_editable_ios_version_string(app, platform: platform)
+  UI.message("No editable App Store version found; creating #{version_string}")
+  app.ensure_version!(version_string, platform: platform)
+  wait_for_editable_ios_version!(app, platform: platform).version_string
+end
+
+platform :ios do
+  desc "Sync App Store metadata into fastlane/metadata"
+  lane :sync_metadata do
+    shared_path = File.expand_path("../../store_metadata", __dir__)
+    ios_metadata_path = File.join(shared_path, "ios", "metadata")
+    metadata_path = File.expand_path("metadata", __dir__)
+    shared_locale_path = File.join(shared_path, "en-US")
+    locale_path = File.join(metadata_path, "en-US")
+
+    sh "rm -rf '#{metadata_path}'"
+    sh "mkdir -p '#{metadata_path}'"
+    sh "cp -R '#{ios_metadata_path}/.' '#{metadata_path}/'"
+    sh "mkdir -p '#{locale_path}'"
+    sh "cp '#{File.join(shared_locale_path, 'name.txt')}' '#{File.join(locale_path, 'name.txt')}'"
+    sh "cp '#{File.join(shared_locale_path, 'description.txt')}' '#{File.join(locale_path, 'description.txt')}'"
+    sh "cp '#{File.join(shared_locale_path, 'release_notes.txt')}' '#{File.join(locale_path, 'release_notes.txt')}'"
+  end
+
+  desc "Sync shared App Store screenshots into fastlane/screenshots"
+  lane :sync_screenshots do
+    shared_screenshots_path = File.expand_path("../../store_metadata/assets/screenshots/ios/en-US", __dir__)
+    screenshots_path = File.expand_path("screenshots", __dir__)
+    dest_path = File.join(screenshots_path, "en-US")
+
+    sh "rm -rf '#{screenshots_path}'"
+
+    if Dir.exist?(shared_screenshots_path)
+      sh "mkdir -p '#{dest_path}'"
+      sh "cp -R '#{shared_screenshots_path}/.' '#{dest_path}/'"
+    end
+  end
+
+  desc "Build the TestFlight-ready iOS release artifact"
+  lane :build_release_artifact do
+    missing = missing_build_requirements
+    if missing.any?
+      UI.user_error!("Missing Apple-side prerequisites or GitHub secrets for iOS release build: #{missing.join(', ')}")
+    end
+
+    setup_ci if ci?
+
+    api_key = app_store_api_key
+    build_number = ios_build_number
+
+    match(**match_options(api_key))
+    UI.message("Building iOS release artifact with build number #{build_number}")
+
+    build_app(
+      project: "iosApp.xcodeproj",
+      scheme: "iosApp",
+      clean: true,
+      export_method: "app-store",
+      xcargs: "APP_BUILD_NUMBER=#{build_number} MARKETING_VERSION=#{repo_version_string}",
+      output_directory: "build/ci-release",
+      output_name: "Squishy-Rings.ipa"
+    )
+  end
+
+  desc "Upload a prebuilt iOS release artifact to TestFlight"
+  lane :deploy do
+    ipa_path = ENV["IOS_IPA_PATH"]
+    UI.user_error!("IOS_IPA_PATH must point to a readable IPA") if ipa_path.to_s.empty? || !File.exist?(ipa_path)
+
+    missing = missing_upload_requirements
+    if missing.any?
+      UI.user_error!("Missing App Store Connect API credentials for iOS upload: #{missing.join(', ')}")
+    end
+
+    api_key = app_store_api_key
+
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Sync App Store metadata and screenshots without uploading a new build"
+  lane :sync_listing do
+    missing = missing_upload_requirements
+    if missing.any?
+      UI.user_error!("Missing App Store Connect API credentials for iOS listing sync: #{missing.join(', ')}")
+    end
+
+    api_key = app_store_api_key
+    ensure_editable_ios_app_store_version!
+
+    sync_metadata
+    sync_screenshots
+
+    metadata_path = File.expand_path("metadata", __dir__)
+    screenshots_path = File.expand_path("screenshots", __dir__)
+
+    # skip_app_version_update keeps listing sync from rewriting an existing
+    # Prepare for Submission version string; we only create one when missing.
+    deliver_options = {
+      api_key: api_key,
+      app_identifier: ios_app_identifier,
+      platform: "ios",
+      metadata_path: metadata_path,
+      skip_binary_upload: true,
+      skip_app_version_update: true,
+      submit_for_review: false,
+      run_precheck_before_submit: false,
+      force: true
+    }
+
+    if Dir.exist?(screenshots_path)
+      ENV["FASTLANE_ENABLE_BETA_DELIVER_SYNC_SCREENSHOTS"] = "true"
+      deliver_options[:screenshots_path] = screenshots_path
+      deliver_options[:sync_screenshots] = true
+    else
+      deliver_options[:skip_screenshots] = true
+    end
+
+    deliver(**deliver_options)
+  end
+
+  desc "Submit the latest TestFlight build for App Store review"
+  lane :submit_for_review do
+    missing = missing_upload_requirements
+    UI.user_error!("Missing App Store Connect API credentials for review submission: #{missing.join(', ')}") if missing.any?
+
+    api_key = app_store_api_key
+    app = Spaceship::ConnectAPI::App.find(ios_app_identifier)
+    platform = Spaceship::ConnectAPI::Platform::IOS
+
+    # Latest TestFlight build may still be processing (not submittable);
+    # take the newest build whose processing state is VALID instead.
+    ready_builds = Spaceship::ConnectAPI::Build.all(
+      app_id: app.id,
+      sort: "-version",
+      limit: 30
+    )
+    ready_build = ready_builds.find { |build| build.processing_state == "VALID" }
+    unless ready_build
+      states = ready_builds.map(&:processing_state).uniq.join(", ")
+      UI.user_error!("No VALID build ready for App Store submission (seen states: #{states})")
+    end
+    build_number = ready_build.version.to_s
+    target_version = repo_version_string
+    if ready_build.app_version != target_version
+      UI.important("Newest VALID build ##{build_number} reports version #{ready_build.app_version}, version.txt says #{target_version}. Pinning this release to the build's version.")
+      target_version = ready_build.app_version
+    end
+    UI.message("Submitting build ##{build_number} (version #{target_version}) for App Store review")
+
+    # App Store Connect keys builds by (version, build_number). The editable
+    # version string MUST equal this build's CFBundleShortVersionString or
+    # deliver fails with "Build number: N does not exist". Versions can't be
+    # deleted once builds exist, so retarget the editable version in place
+    # (ensure_version! PATCHes versionString when one is already editable).
+    edit_version = app.get_edit_app_store_version(platform: platform)
+    if edit_version && edit_version.version_string != target_version
+      UI.message("Retargeting editable App Store version #{edit_version.version_string} to #{target_version}")
+      app.ensure_version!(target_version, platform: platform)
+    end
+    edit_version = wait_for_editable_ios_version!(app, platform: platform)
+    version_string = edit_version.version_string
+    if version_string != target_version
+      UI.user_error!("Could not retarget App Store version to #{target_version}; it is still #{version_string}. Manual step in App Store Connect: remove version #{version_string} (App version section) then retry.")
+    end
+
+    metadata_path = File.expand_path("metadata", __dir__)
+    screenshots_path = File.expand_path("screenshots", __dir__)
+
+    sync_metadata
+    sync_screenshots
+
+    release_notes = ENV["WHATS_NEW_IOS_FILE"]
+    if release_notes && File.exist?(release_notes)
+      notes_path = File.join(metadata_path, "en-US", "release_notes.txt")
+      FileUtils.cp(release_notes, notes_path)
+      UI.message("Staged 'what's new' release notes from tag message")
+    end
+
+    deliver_options = {
+      api_key: api_key,
+      app_identifier: ios_app_identifier,
+      app_version: version_string,
+      build_number: build_number,
+      metadata_path: metadata_path,
+      skip_binary_upload: true,
+      skip_app_version_update: true,
+      submit_for_review: true,
+      run_precheck_before_submit: false,
+      submission_information: {
+        export_compliance_uses_encryption: false,
+        export_compliance_encryption_updated: false
+      },
+      force: true
+    }
+
+    if Dir.exist?(screenshots_path)
+      ENV["FASTLANE_ENABLE_BETA_DELIVER_SYNC_SCREENSHOTS"] = "true"
+      deliver_options[:screenshots_path] = screenshots_path
+      deliver_options[:sync_screenshots] = true
+    else
+      deliver_options[:skip_screenshots] = true
+    end
+
+    deliver(**deliver_options)
+  end
+
+  desc "Print recent builds (build number, short version, processing state)"
+  lane :inspect_builds do
+    api_key = app_store_api_key
+    app = Spaceship::ConnectAPI::App.find(ios_app_identifier)
+    builds = Spaceship::ConnectAPI::Build.all(
+      app_id: app.id,
+      sort: "-version",
+      limit: 10
+    )
+    builds.each do |build|
+      UI.message("INSPECT build##{build.version} short=#{build.app_version || '?'} state=#{build.processing_state}")
+    end
+  end
+end
