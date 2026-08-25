@@ -1,10 +1,11 @@
 package com.thevinesh.squishyrings
 
-import androidx.compose.runtime.remember
 import androidx.compose.ui.window.ComposeUIViewController
 import platform.UIKit.UIViewController
 
-fun MainViewController(): UIViewController {
+fun MainViewController() = MainViewController(screenshotScenarioName = null)
+
+fun MainViewController(screenshotScenarioName: String?): UIViewController {
     val hapticFeedback = IosHapticFeedback()
     val tilt = IosTiltSource()
 
