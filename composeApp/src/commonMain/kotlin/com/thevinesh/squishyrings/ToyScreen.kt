@@ -113,22 +113,21 @@ fun ToyScreen(
 
     LaunchedEffect(tilt) {
         var lastNanos = 0L
-        withFrameNanos { nanos ->
-            val dt = if (lastNanos == 0L) {
-                1f / 60f
-            } else {
-                ((nanos - lastNanos) / 1e9f).coerceAtMost(1f / 20f)
-            }
-            tilt?.let { tiltState.update(it.latest(), dt) }
-            sim?.let { s ->
-                var impulse: Impulse? = null
-                while (pendingImpulse.isNotEmpty()) {
-                    impulse = pendingImpulse.removeFirst()
+        while (true) {
+            withFrameNanos { nanos ->
+                val dt = if (lastNanos == 0L) {
+                    1f / 60f
+                } else {
+                    ((nanos - lastNanos) / 1e9f).coerceAtMost(1f / 20f)
                 }
-                s.step(dt, tiltState.current, impulse)
+                tilt?.let { tiltState.update(it.latest(), dt) }
+                sim?.let { s ->
+                    val impulse = pendingImpulse.removeFirstOrNull()
+                    s.step(dt, tiltState.current, impulse)
+                }
+                frame.value++
+                lastNanos = nanos
             }
-            frame.value++
-            lastNanos = nanos
         }
     }
 }
