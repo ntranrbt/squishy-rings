@@ -33,10 +33,12 @@ data class Tuning(
     val substeps: Int = 2,
     val restitution: Float = 0.35f,
     val wallDamping: Float = 0.4f,
-    val squishStrength: Float = 520f, // px/s kick at impulse center
-    val squishFalloff: Float = 240f,  // px
-    val popStrength: Float = 260f,
-    val spinKick: Float = 2.5f,
+    val squishStrength: Float = 1100f, // px/s kick at impulse center
+    val squishFalloff: Float = 480f,   // px
+    val popStrength: Float = 480f,
+    val spinKick: Float = 5.0f,
+    /** Mix of radial spray vs screen-up (0 = purely radial, 1 = purely upward). */
+    val impulseUpBias: Float = 0.55f,
     val wallInset: Float = 24f,
     val cornerRadius: Float = 56f,
 ) {

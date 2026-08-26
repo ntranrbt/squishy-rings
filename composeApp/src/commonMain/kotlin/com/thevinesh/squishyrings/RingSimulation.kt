@@ -20,15 +20,21 @@ import kotlin.random.Random
  * - soft circle-circle collisions + rounded-rect walls
  */
 class RingSimulation private constructor(
-    val width: Float,
-    val height: Float,
+    width: Float,
+    height: Float,
     val rings: MutableList<Ring>,
     private val rng: Random,
     private val tuning: Tuning,
 ) {
+    var width: Float = width
+        private set
+    var height: Float = height
+        private set
     private var time: Float = 0f
 
     fun resize(width: Float, height: Float) {
+        this.width = width
+        this.height = height
         rings.forEach { r ->
             r.x = r.x.coerceIn(r.radius, (width - r.radius).coerceAtLeast(r.radius))
             r.y = r.y.coerceIn(r.radius, (height - r.radius).coerceAtLeast(r.radius))
@@ -36,15 +42,18 @@ class RingSimulation private constructor(
     }
 
     /** Advance the sim by [dt] seconds under screen-space [gravity]; optional one-shot [impulse]. */
-    fun step(dt: Float, gravity: Vec2, impulse: Impulse? = null) {
+    fun step(dt: Float, gravity: Vec2, impulse: Impulse? = null) =
+        step(dt, gravity, listOfNotNull(impulse))
+
+    fun step(dt: Float, gravity: Vec2, impulses: List<Impulse>) {
         val sdt = dt / tuning.substeps
         repeat(tuning.substeps) { i ->
-            stepOnce(sdt, gravity, if (i == 0) impulse else null)
+            stepOnce(sdt, gravity, if (i == 0) impulses else emptyList())
         }
         time += dt
     }
 
-    private fun stepOnce(dt: Float, gravity: Vec2, impulse: Impulse?) {
+    private fun stepOnce(dt: Float, gravity: Vec2, impulses: List<Impulse>) {
         for (r in rings) {
             var fx = gravity.x * tuning.gravityScale
             var fy = gravity.y * tuning.gravityScale
@@ -61,19 +70,24 @@ class RingSimulation private constructor(
             r.angle += r.spin * dt
             r.spin *= exp(-1.5f * dt)
         }
-        if (impulse != null) applyImpulse(impulse)
+        for (impulse in impulses) applyImpulse(impulse)
         resolveRingCollisions()
         resolveWalls()
     }
 
     private fun applyImpulse(imp: Impulse) {
+        val upBias = tuning.impulseUpBias
+        val radialWeight = 1f - upBias
         for (r in rings) {
             val dx = r.x - imp.cx
             val dy = r.y - imp.cy
             val dist = hypot(dx, dy).coerceAtLeast(1f)
             val k = imp.strength * exp(-dist / imp.falloff)
-            r.vx += dx / dist * k
-            r.vy += dy / dist * k
+            val mixX = dx / dist * radialWeight
+            val mixY = dy / dist * radialWeight - upBias
+            val mixLen = hypot(mixX, mixY).coerceAtLeast(0.001f)
+            r.vx += mixX / mixLen * k
+            r.vy += mixY / mixLen * k
             r.spin += (rng.nextFloat() - 0.5f) * 2f * tuning.spinKick
         }
     }

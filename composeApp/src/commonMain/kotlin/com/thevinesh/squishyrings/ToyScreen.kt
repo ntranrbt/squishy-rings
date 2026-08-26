@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -33,9 +34,9 @@ import kotlin.math.sin
 /**
  * The whole toy: fluid chamber with floating rings, squishy button, gyro tilt.
  *
- * Sim space is 1:1 with canvas pixels. The simulation is (re)created on the first
- * size change, stepped in the frame loop, and observed via [frame] so the Canvas
- * redraws every frame.
+ * Sim space is 1:1 with canvas pixels. The simulation is created on the first
+ * size, resized (not recreated) on rotation, stepped in the frame loop, and
+ * observed via [frame] so the Canvas redraws every frame.
  */
 @Composable
 fun ToyScreen(
@@ -50,15 +51,41 @@ fun ToyScreen(
     val pendingImpulse = remember { ArrayDeque<Impulse>() }
     val tuning = Tuning.Default
     val buttonPaddingDp = 24.dp
-    val buttonSizeDp = 150.dp
+    val portraitButtonSizeDp = 150.dp
+    val landscapeButtonSizeDp = portraitButtonSizeDp * 0.85f
+    val isLandscape = canvasSize.width > canvasSize.height
+    val landscapeButtonSizePx = with(density) { landscapeButtonSizeDp.toPx() }
+    val portraitButtonHalfPx = with(density) { (portraitButtonSizeDp / 2).toPx() }
+    val landscapeButtonHalfPx = landscapeButtonSizePx / 2f
+    val buttonPadPx = with(density) { buttonPaddingDp.toPx() }
+    val portraitCenter = remember(canvasSize, portraitButtonHalfPx, buttonPadPx) {
+        Vec2(
+            x = canvasSize.width / 2f,
+            y = canvasSize.height - buttonPadPx - portraitButtonHalfPx,
+        )
+    }
+    val leftCenter = remember(canvasSize, landscapeButtonHalfPx, buttonPadPx) {
+        Vec2(
+            x = canvasSize.width * 0.25f,
+            y = canvasSize.height - buttonPadPx - landscapeButtonHalfPx,
+        )
+    }
+    val rightCenter = remember(canvasSize, landscapeButtonHalfPx, buttonPadPx) {
+        Vec2(
+            x = canvasSize.width * 0.75f,
+            y = canvasSize.height - buttonPadPx - landscapeButtonHalfPx,
+        )
+    }
 
-    val buttonCenterSim = remember(canvasSize) {
-        with(density) {
-            Vec2(
-                x = canvasSize.width / 2f,
-                y = canvasSize.height - (buttonPaddingDp + buttonSizeDp / 2).toPx().toFloat(),
-            )
-        }
+    fun enqueueKick(origin: Vec2, pressed: Boolean) {
+        pendingImpulse.addLast(
+            Impulse(
+                cx = origin.x,
+                cy = origin.y,
+                strength = if (pressed) tuning.squishStrength else tuning.popStrength,
+                falloff = tuning.squishFalloff,
+            ),
+        )
     }
 
     DisposableEffect(tilt) {
@@ -72,7 +99,14 @@ fun ToyScreen(
                 .fillMaxSize()
                 .onSizeChanged {
                     canvasSize = it
-                    sim = RingSimulation.create(it.width.toFloat(), it.height.toFloat())
+                    val w = it.width.toFloat()
+                    val h = it.height.toFloat()
+                    val existing = sim
+                    if (existing == null) {
+                        sim = RingSimulation.create(w, h)
+                    } else {
+                        existing.resize(w, h)
+                    }
                 },
         ) {
             val f = frame.value
@@ -82,33 +116,61 @@ fun ToyScreen(
             drawChamberFrame(size.width, size.height, density.density)
         }
 
-        SquishyButton(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = buttonPaddingDp),
-            onSquish = {
-                haptics.squish()
-                pendingImpulse.addLast(
-                    Impulse(
-                        cx = buttonCenterSim.x,
-                        cy = buttonCenterSim.y,
-                        strength = tuning.squishStrength,
-                        falloff = tuning.squishFalloff,
-                    ),
+        if (isLandscape) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.5f)
+                    .align(Alignment.BottomStart)
+                    .padding(bottom = buttonPaddingDp),
+            ) {
+                SquishyButton(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    size = landscapeButtonSizeDp,
+                    onSquish = {
+                        haptics.squish()
+                        enqueueKick(leftCenter, pressed = true)
+                    },
+                    onPop = {
+                        haptics.pop()
+                        enqueueKick(leftCenter, pressed = false)
+                    },
                 )
-            },
-            onPop = {
-                haptics.pop()
-                pendingImpulse.addLast(
-                    Impulse(
-                        cx = buttonCenterSim.x,
-                        cy = buttonCenterSim.y,
-                        strength = tuning.popStrength,
-                        falloff = tuning.squishFalloff,
-                    ),
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.5f)
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = buttonPaddingDp),
+            ) {
+                SquishyButton(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    size = landscapeButtonSizeDp,
+                    onSquish = {
+                        haptics.squish()
+                        enqueueKick(rightCenter, pressed = true)
+                    },
+                    onPop = {
+                        haptics.pop()
+                        enqueueKick(rightCenter, pressed = false)
+                    },
                 )
-            },
-        )
+            }
+        } else {
+            SquishyButton(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = buttonPaddingDp),
+                size = portraitButtonSizeDp,
+                onSquish = {
+                    haptics.squish()
+                    enqueueKick(portraitCenter, pressed = true)
+                },
+                onPop = {
+                    haptics.pop()
+                    enqueueKick(portraitCenter, pressed = false)
+                },
+            )
+        }
     }
 
     LaunchedEffect(tilt) {
@@ -122,8 +184,10 @@ fun ToyScreen(
                 }
                 tilt?.let { tiltState.update(it.latest(), dt) }
                 sim?.let { s ->
-                    val impulse = pendingImpulse.removeFirstOrNull()
-                    s.step(dt, tiltState.current, impulse)
+                    val impulses = buildList {
+                        while (pendingImpulse.isNotEmpty()) add(pendingImpulse.removeFirst())
+                    }
+                    s.step(dt, tiltState.current, impulses)
                 }
                 frame.value++
                 lastNanos = nanos

@@ -28,6 +28,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SquishyButton(
     modifier: Modifier = Modifier,
+    size: Dp = 150.dp,
     onSquish: () -> Unit = {},
     onPop: () -> Unit = {},
 ) {
@@ -56,7 +58,7 @@ fun SquishyButton(
 
     Box(
         modifier = modifier
-            .size(150.dp)
+            .size(size)
             .graphicsLayer {
                 scaleX = 1f + (1f - scale.value) * 0.35f
                 scaleY = scale.value
