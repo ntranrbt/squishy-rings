@@ -4,33 +4,40 @@ import androidx.compose.ui.graphics.Color
 
 /**
  * Design tokens for the Squishy Rings toy chamber.
- * Palette mirrors the physical toy: bright ring colors over a teal underwater scene,
- * purple squishy dome.
+ *
+ * Flat cartoon look: water painted as hard-edged bands rather than a smooth
+ * gradient, every solid shape carries an [Outline] stroke, and highlights are
+ * single opaque gloss marks. Realism belongs in the simulation, not the art.
  */
 object ToyColors {
-    // Water
-    val WaterDeep = Color(0xFF0B3B5C)
-    val WaterMid = Color(0xFF12618C)
-    val WaterLight = Color(0xFF1E88B5)
-    val LightShaft = Color(0x14FFFFFF)
-    val Bubble = Color(0x29FFFFFF)
+    // Water, painted top to bottom as flat bands
+    val WaterTop = Color(0xFF00F0FF)
+    val WaterMid = Color(0xFF00B4FF)
+    val WaterBottom = Color(0xFF0078FF)
+    val LightShaft = Color(0x12FFFFFF)
+    val Bubble = Color(0xCCFFFFFF)
+    val BubbleGlint = Color(0xFFFFFFFF)
 
-    // Chamber (clear plastic case)
-    val ChamberEdge = Color(0x40FFFFFF)
-    val ChamberGloss = Color(0x29FFFFFF)
+    /** Cartoon ink. Every ring, peg and dome is drawn over a slightly fatter stroke of this. */
+    val Outline = Color(0xFF141414)
 
-    // Squishy button
-    val SquishPurple = Color(0xFF9C4DCC)
-    val SquishPurpleDeep = Color(0xFF6A2C96)
-    val Gloss = Color(0x66FFFFFF)
-    val GlossTransparent = Color(0x00FFFFFF)
+    // Chamber (chunky toy shell)
+    val ChamberRim = Color(0xFFE0F2F1)
+    val ChamberGloss = Color(0xE6FFFFFF)
 
-    // Ring colors (the toy's five)
+    // Squishy dome, outer ridge inward
+    val SquishOuter = Color(0xFF7B1FA2)
+    val SquishMid = Color(0xFF9C27B0)
+    val SquishInner = Color(0xFFBA68C8)
+    val SquishCore = Color(0xFF4A148C)
+    val Gloss = Color(0xF2FFFFFF)
+
+    // Ring colors (the toy's five, cartoon-saturated)
     val ringColors = listOf(
-        Color(0xFFF97316), // orange
-        Color(0xFFEC4899), // pink/magenta
-        Color(0xFFA78BFA), // lavender
-        Color(0xFF2DD4BF), // teal
-        Color(0xFFA3E635), // lime green
+        Color(0xFFFF9800), // orange
+        Color(0xFFE91E63), // pink/magenta
+        Color(0xFF9C27B0), // purple
+        Color(0xFF00BCD4), // turquoise
+        Color(0xFFCDDC39), // lime
     )
 }

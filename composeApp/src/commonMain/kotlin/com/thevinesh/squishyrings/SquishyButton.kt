@@ -24,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -87,24 +86,24 @@ private fun SquishyDome() {
     Canvas(Modifier.fillMaxSize()) {
         val c = center
         val maxR = size.minDimension / 2f
-        // concentric ridged dome, like the toy's purple button
-        for (i in 0 until 3) {
-            val r = maxR * (0.98f - i * 0.27f)
-            drawCircle(
-                color = ToyColors.SquishPurple,
-                radius = r,
-                style = Stroke(width = maxR * 0.13f),
-            )
+        val ink = maxR * 0.07f
+        // concentric ridges, each filled then inked, like a chunky rubber toy button
+        val ridges = listOf(
+            0.90f to ToyColors.SquishOuter,
+            0.64f to ToyColors.SquishMid,
+            0.36f to ToyColors.SquishInner,
+            0.12f to ToyColors.SquishCore,
+        )
+        ridges.forEach { (scale, color) ->
+            val r = maxR * scale
+            drawCircle(color = color, radius = r)
+            drawCircle(color = ToyColors.Outline, radius = r, style = Stroke(width = ink))
         }
-        drawCircle(color = ToyColors.SquishPurpleDeep, radius = maxR * 0.16f)
-        // glossy highlight, top-left
+        // gloss dot, top-left
         drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(ToyColors.Gloss, ToyColors.GlossTransparent),
-                center = c + Offset(-maxR * 0.35f, -maxR * 0.4f),
-                radius = maxR * 0.9f,
-            ),
-            radius = maxR,
+            color = ToyColors.Gloss,
+            center = c + Offset(-maxR * 0.38f, -maxR * 0.42f),
+            radius = maxR * 0.15f,
         )
     }
 }

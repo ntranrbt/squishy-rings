@@ -20,7 +20,7 @@ fun App(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(ToyColors.WaterDeep),
+                .background(ToyColors.WaterBottom),
         ) {
             ToyScreen(tilt = platformTilt, haptics = hapticFeedback)
         }

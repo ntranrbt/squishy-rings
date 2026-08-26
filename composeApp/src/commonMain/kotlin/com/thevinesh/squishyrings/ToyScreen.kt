@@ -19,8 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
@@ -29,6 +27,8 @@ import androidx.compose.ui.platform.LocalDensity
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * The whole toy: fluid chamber with floating rings, squishy button, gyro tilt.
@@ -133,18 +133,28 @@ fun ToyScreen(
 }
 
 private fun DrawScope.drawWater(width: Float, height: Float, frame: Int) {
+    // flat cartoon bands, hard edges
+    val topBand = height * 0.30f
+    val midBand = height * 0.58f
+    drawRect(color = ToyColors.WaterTop, size = Size(width, topBand))
     drawRect(
-        brush = Brush.verticalGradient(
-            colors = listOf(ToyColors.WaterLight, ToyColors.WaterMid, ToyColors.WaterDeep),
-        ),
+        color = ToyColors.WaterMid,
+        topLeft = Offset(0f, topBand),
+        size = Size(width, midBand - topBand),
     )
-    // soft light shafts from above
-    for (i in 0 until 5) {
-        val x = width * (0.08f + 0.21f * i)
-        drawRect(
+    drawRect(
+        color = ToyColors.WaterBottom,
+        topLeft = Offset(0f, midBand),
+        size = Size(width, height - midBand),
+    )
+    // a few slanted light shafts, angled so they never read as vertical banding
+    for (i in 0 until 3) {
+        val x = width * (0.18f + 0.3f * i)
+        drawLine(
             color = ToyColors.LightShaft,
-            topLeft = Offset(x, 0f),
-            size = Size(width * 0.07f, height),
+            start = Offset(x, -height * 0.1f),
+            end = Offset(x + width * 0.35f, height * 1.1f),
+            strokeWidth = width * 0.11f,
         )
     }
     // slow rising bubbles (cosmetic, driven by frame count)
@@ -154,54 +164,70 @@ private fun DrawScope.drawWater(width: Float, height: Float, frame: Int) {
         val span = height + 60f
         val progress = (frame * speed + i * 137f) % span
         val by = height + 30f - progress
+        val r = 5f + (i % 3) * 3f
+        drawCircle(color = ToyColors.Bubble, center = Offset(bx, by), radius = r)
         drawCircle(
-            color = ToyColors.Bubble,
-            center = Offset(bx, by),
-            radius = 3f + (i % 3) * 2f,
+            color = ToyColors.BubbleGlint,
+            center = Offset(bx - r * 0.3f, by - r * 0.35f),
+            radius = r * 0.28f,
         )
     }
 }
 
 private fun DrawScope.drawRing(r: Ring) {
-    val color = ToyColors.ringColors[r.colorIndex]
+    val center = Offset(r.x, r.y)
+    val band = r.radius * 0.42f
+    // ink pass first: a fatter stroke of the same circle reads as an outline on both edges
     drawCircle(
-        color = color,
-        center = Offset(r.x, r.y),
+        color = ToyColors.Outline,
+        center = center,
         radius = r.radius,
-        style = Stroke(width = r.radius * 0.42f, cap = StrokeCap.Round),
+        style = Stroke(width = band + r.radius * 0.24f),
     )
-    // highlight arc that rotates with the ring, so spin is visible
-    val deg = r.angle * 57.29578f
-    drawArc(
-        color = Color.White.copy(alpha = 0.4f),
-        startAngle = deg,
-        sweepAngle = 70f,
-        useCenter = false,
-        topLeft = Offset(r.x - r.radius, r.y - r.radius),
-        size = Size(r.radius * 2f, r.radius * 2f),
-        style = Stroke(width = r.radius * 0.42f, cap = StrokeCap.Round),
+    drawCircle(
+        color = ToyColors.ringColors[r.colorIndex],
+        center = center,
+        radius = r.radius,
+        style = Stroke(width = band),
+    )
+    // one gloss dot orbiting the band, so spin stays readable
+    drawCircle(
+        color = ToyColors.Gloss,
+        center = Offset(r.x + cos(r.angle) * r.radius, r.y + sin(r.angle) * r.radius),
+        radius = band * 0.3f,
     )
 }
 
 private fun DrawScope.drawChamberFrame(width: Float, height: Float, density: Float) {
     val corner = 48f * density
-    // clear plastic case edge
+    val rim = 6f * density
+    // chunky toy shell
     drawRoundRect(
-        color = ToyColors.ChamberEdge,
-        topLeft = Offset(6f * density, 6f * density),
-        size = Size(width - 12f * density, height - 12f * density),
+        color = ToyColors.ChamberRim,
+        topLeft = Offset(rim / 2f, rim / 2f),
+        size = Size(width - rim, height - rim),
         cornerRadius = CornerRadius(corner, corner),
-        style = Stroke(width = 2f * density),
+        style = Stroke(width = rim),
     )
-    // top-edge gloss
-    drawRoundRect(
-        brush = Brush.verticalGradient(
-            colors = listOf(ToyColors.ChamberGloss, Color.Transparent),
-            endY = height * 0.25f,
-        ),
-        topLeft = Offset(0f, 0f),
-        size = Size(width, height * 0.25f),
-        cornerRadius = CornerRadius(corner, corner),
+    // two gloss slashes across the top-left corner
+    val arcBox = corner * 1.7f
+    drawArc(
+        color = ToyColors.ChamberGloss,
+        startAngle = 185f,
+        sweepAngle = 50f,
+        useCenter = false,
+        topLeft = Offset(corner * 0.5f, corner * 0.5f),
+        size = Size(arcBox, arcBox),
+        style = Stroke(width = 4f * density, cap = StrokeCap.Round),
+    )
+    drawArc(
+        color = ToyColors.ChamberGloss,
+        startAngle = 195f,
+        sweepAngle = 22f,
+        useCenter = false,
+        topLeft = Offset(corner * 0.9f, corner * 0.9f),
+        size = Size(arcBox * 0.75f, arcBox * 0.75f),
+        style = Stroke(width = 3f * density, cap = StrokeCap.Round),
     )
 }
 
@@ -211,7 +237,7 @@ private fun ToyScreenPreview() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ToyColors.WaterDeep),
+            .background(ToyColors.WaterBottom),
     ) {
         ToyScreen()
     }
