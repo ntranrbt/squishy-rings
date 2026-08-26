@@ -202,15 +202,6 @@ jobs:
           path: iosApp/build/ci-release/Squishy-Rings.ipa
           if-no-files-found: error
 
-  build-wasm:
-    name: Build & Deploy Web App
-    needs: [test, version-check]
-    runs-on: ubuntu-latest
-    if: false # no web target in squishy-rings
-    steps:
-      - name: Skipped
-        run: echo "no wasm target"
-
   deploy-android:
     name: Deploy Android to Play Internal
     needs: [build-android, version-check]
